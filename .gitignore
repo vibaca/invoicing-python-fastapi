@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+
+# Virtualenvs
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# Editor/IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# macOS
+.DS_Store
+
+# Docker
+docker-compose.override.yml
+*.log
+
+# Node (leftover files)
+node_modules/
+package-lock.json
+
+# Misc
+*.sqlite3
+*.db
+*.tar.gz
+
+# Byte-compiled / optimized / DLL files
+*.so
+
+# Pip cache
+pip-wheel-metadata/
+
+# Pytest
+.cache/
+
+# Logs
+logs/
+*.log
+
+# Coverage
+.coverage.*
+
+# Temporary
+*.swp
+*~
+
+# CI artifacts
+coverage/
+
+# Ignore local env files sometimes used
+.env.local
+.env.*.local

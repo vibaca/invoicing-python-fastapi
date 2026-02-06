@@ -1,0 +1,43 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+      - rabbit
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: root
+      DB_PASSWORD: password
+      DB_NAME: ${DB_NAME:-invoicing_dev}
+      RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+
+  db:
+    image: mysql:8.0
+    container_name: invoicing_db
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      # A default DB is still created for convenience; the init script below creates both dev and test DBs
+      MYSQL_DATABASE: invoicing_dev
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+
+  rabbit:
+    image: rabbitmq:3-management
+    container_name: invoicing_rabbit
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # Acceptance tests run locally via Behave; no dedicated container
+
+volumes:
+  db_data:
