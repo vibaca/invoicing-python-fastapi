@@ -1,116 +1,148 @@
-# Invoicing API (FastAPI) — Learning Project
+# Invoicing API (FastAPI)
 
-This project is a learning scaffold for building a REST invoicing API with FastAPI, following DDD, Hexagonal Architecture, SOLID, CQRS, TDD, and Domain Events (RabbitMQ). The project is Dockerized and uses MySQL as the main database. Acceptance tests are provided with Behave (Python) and can be run locally or inside the existing `api` container.
+This project is a boilerplate for building a REST invoicing API with FastAPI, following DDD, Hexagonal Architecture, SOLID, CQRS, TDD, and Domain Events (RabbitMQ). The project is Dockerized and uses MySQL as the main database. Acceptance tests are provided with Behave (Python) and can be run locally or inside the existing `api` container.
+
+Prerequisites
+
+- Docker and docker-compose (for the usual development flow).
+- Python (only required for running the app locally without Docker).
 
 Quick start
 
-1. Build and run everything:
+1. Run setup (starts infra and the API):
 
 ```bash
 make setup
 ```
 
-2. Run unit tests locally:
+2. test the project:
 
 ```bash
-pytest -q
+make test
 ```
 
-3. Run acceptance tests (Behave):
+3. Open the API docs and quick endpoint reference:
 
 ```bash
-# Preferred: use the Makefile helper which runs behave inside a test API container
-make test-acceptance
-
-# Or run locally against a running API (install dev deps first)
-docker-compose up -d db rabbit api
-pip install -r requirements-dev.txt
-behave -f progress tests/acceptance/behave/features
+# After `make verify` the app should be available at http://localhost:8000/docs
+open http://localhost:8000/docs
 ```
 
-Project layout (current)
+Running locally (development)
 
-- `src/` — Python FastAPI application (PascalCase modules)
-	- `src/Application/` — application layer (Commands, Queries, Ports)
-	- `src/Domain/` — domain models and value objects
-	- `src/Infrastructure/` — adapters and infra (Adapters, Db, Events, Repositories)
-	- `src/Infrastructure/` — adapters and infra (Adapters, Database, Repositories, Events).
-		- Implementation modules are organized under subpackages: `src/Infrastructure/Database`, `src/Infrastructure/Repositories`, `src/Infrastructure/Events`.
-		- Backwards-compatible shims exist at `src/Infrastructure/Db.py`, `src/Infrastructure/Repositories.py`, `src/Infrastructure/Events.py` that re-export implementations to avoid breaking older imports.
-		- A lowercase entrypoint shim `src/main.py` is provided that imports `app` from `src/Main.py` so tools can reference either `src.Main:app` or `src.main:app`.
-	- `src/Main.py` — FastAPI app entrypoint (exposes `app`)
-- `tests/` — unit and integration tests (moved to repository root)
-- `tests/acceptance/behave` — Behave feature files and Python test setup
-- `Documentation/` — step-by-step guides and domain notes
-
-See `Documentation/STEP_BY_STEP.md` for a step-by-step guide (updated to match the current layout).
-
-New endpoints added:
-
-- `POST /api/invoices` — create invoice (JSON: `customer`, `invoiceNumber`) — `amount` is optional and defaults to `0.0`.
-- `GET /api/invoices/{invoice_id}` — get invoice.
-- `POST /api/invoices/{invoice_id}:issue` — issue invoice.
-- `POST /api/invoices/{invoice_id}:pay` — pay invoice.
-- `POST /api/invoices/{invoice_id}:cancel` — cancel invoice.
-- `POST /api/invoices/{invoice_id}/items` — add an item to invoice (JSON: `productId`, `description`, `quantity`, `unitPrice`).
-
-- `PATCH /api/invoices/{invoice_id}/items/{product_id}` — update item quantity (JSON: `quantity`). Allowed only when invoice is `draft`.
-- `DELETE /api/invoices/{invoice_id}/items/{product_id}` — remove an item. Allowed only when invoice is `draft`.
-
-**OpenAPI / API Docs**
-
-- **Local (uvicorn):** ejecuta `uvicorn src.Main:app --reload --port 8000` y abre `http://localhost:8000/docs` (Swagger UI) o `http://localhost:8000/openapi.json` (JSON).
-- **Docker (docker-compose):** si usas Docker, arranca los servicios y el contenedor `api`:
+If you prefer to run the API without Docker for quick iteration:
 
 ```bash
-docker-compose up -d db rabbit api
+# ensure PYTHONPATH includes the project src folder
+export PYTHONPATH=./src
+uvicorn src.Main:app --reload --port 8000
 ```
 
-Luego abre `http://localhost:8000/docs`.
-- **Nota:** las rutas del API están prefijadas con `/api` (por ejemplo `POST /api/invoices`).
-- **Respuesta de `items`:** las respuestas JSON de los endpoints incluyen los items en camelCase. Ejemplo de item en la respuesta:
-
-```json
-{"productId": "P1", "description": "Product", "quantity": 1, "unitPrice": 10.0}
-```
-
-CQRS note: application handlers are organized under `src/Application/Commands` and `src/Application/Queries`. Ports live in `src/Application/Ports`. A small compatibility layer (`__init__.py` re-exports) may exist in some folders for legacy imports.
-
-Notes on naming and wiring:
-
-- **Handler naming:** handlers use camelCase (for example `createInvoiceHandler`, `getInvoiceHandler`, `addInvoiceItemHandler`).
-- **Dependency wiring:** concrete implementations (repositories, event publishers) are provided by the adapters layer using FastAPI `Depends` (see `src/Infrastructure/Adapters/Http.py`), so handlers depend only on ports/interfaces for easy testing and substitution.
-
-- **Files & tooling:** `__pycache__` folders were removed and `.gitignore` updated to ignore bytecode files. Compatibility shims were added under `src/` to minimise runtime import changes after refactors.
-- **Removed re-exports:** Convenience re-export `Init.py` files (previously present under `src/Application` and `src/Infrastructure/Adapters`) were removed — import handlers directly from their modules under `src/Application/Commands` or `src/Application/Queries` (or use `src/Application/Handlers` module exports where present).
-
-# Test commands (local):
+Run `init_db.py` if you need to create or reset the database schema used by the app (when pointing the app to a local MySQL instance):
 
 ```bash
-# run unit and integration tests locally
-pytest -q
-
-# run Behave acceptance tests (locally or inside the `api` container)
-# Start infra and API
-docker-compose up -d db rabbit api
-
-# run behave from host (recommended)
-pip install -r requirements-dev.txt
-behave -f progress tests/acceptance/behave/features
-
-# or run inside the existing api container:
-docker-compose run --rm -e PYTHONPATH=/app api sh -c "pip install --no-cache-dir -r requirements-dev.txt && behave -f progress tests/acceptance/behave/features"
-
-# Makefile helpers
-make test-unit         # run unit tests inside api container
-make test-integration  # recreate test DB and run integration tests
-make test-acceptance   # run acceptance tests using scripts/run_acceptance.sh
-
-# Linters
-make check-ruff        # run ruff
-make check-mypy        # run mypy
-make check-pylint      # run pylint (non-failing)
-make check-bandit      # run bandit
+python scripts/init_db.py
 ```
+
+Endpoint quick reference (available under `/api`):
+
+- **Create invoice**: `POST /api/invoices`
+	- Body: `{ "customer": "Customer Name", "invoiceNumber": "INV-001", "amount": 0.0 }`
+	- Returns: created invoice object with `id` and metadata. Creates a `draft` invoice.
+
+- **Get invoice**: `GET /api/invoices/{invoice_id}`
+	- Path: invoice UUID (or numeric id if configured).
+	- Returns: invoice details including `status` and `items`.
+
+- **Issue invoice**: `POST /api/invoices/{invoice_id}:issue`
+	- Transitions invoice from `draft` → `issued` and prevents further item edits.
+
+- **Pay invoice**: `POST /api/invoices/{invoice_id}:pay`
+	- Allowed only when invoice is `issued`. Marks invoice as `paid`.
+
+- **Cancel invoice**: `POST /api/invoices/{invoice_id}:cancel`
+	- Can cancel `draft` or `issued` invoices (business rules apply).
+
+- **Add item**: `POST /api/invoices/{invoice_id}/items`
+	- Body: `{ "productId": "P1", "description": "Product", "quantity": 1, "unitPrice": 10.0 }`
+	- Allowed only when invoice is `draft`.
+
+- **Update item**: `PATCH /api/invoices/{invoice_id}/items/{product_id}`
+	- Body: `{ "quantity": 2 }` (or other fields allowed by API).
+	- Allowed only when invoice is `draft`.
+
+- **Delete item**: `DELETE /api/invoices/{invoice_id}/items/{product_id}`
+	- Allowed only when invoice is `draft`.
+
+This finishes the Quick Start.
+
+API & project reference
+
+OpenAPI / API Docs
+
+- Local: run `uvicorn src.Main:app --reload --port 8000` and open `http://localhost:8000/docs` (Swagger UI) or `http://localhost:8000/openapi.json`.
+- Docker: `docker-compose up -d db rabbit api` then open `http://localhost:8000/docs`.
+
+Notes
+
+- The API is mounted under the `/api` prefix (e.g. `POST /api/invoices`).
+- Responses include items in camelCase (example item: `{"productId":"P1","description":"Product","quantity":1,"unitPrice":10.0}`).
+
+Project layout (short)
+
+- `src/` — application code (FastAPI, domain, application, infrastructure).
+- `tests/` — unit and integration tests.
+- `tests/acceptance/behave` — Behave features and steps.
+- `Documentation/` — guides and domain notes.
+
+Development & common commands
+
+- Build image: `make build`
+- Start dev services: `make up`
+- Full verification (linters + tests): `make verify`
+
+Environment variables
+
+- `DB_NAME` — database name used by the app (tests default to `invoicing_test`).
+- `TEST_MODE` — set to `1` when running tests inside containers (used by some scripts).
+- `INIT_TEST_DB` — set to `1` to initialize or reset the test DB when running `init_db.py`.
+- `PYTHONPATH` — ensure the project `src` is on `PYTHONPATH` when running scripts or tests locally.
+- `API_BASE` — used by acceptance tests to point to the base host (container name or URL).
+
+Testing
+
+ (Optional) Run all unit tests locally:
+
+ ```bash
+ pytest -q
+ ```
+
+- Unit tests: `pytest tests/unit -q` or `make test-unit`.
+- Integration tests: `make test-integration` (recreates `invoicing_test` DB and runs `pytest tests/integration`).
+- Acceptance tests (Behave): `make test-acceptance` (starts a temporary test API container, runs Behave, cleans up).
+
+Acceptance tests (behave) notes
+
+- The `make test-acceptance` target launches a temporary API container, waits for readiness, runs `scripts/init_db.py` inside the container and then executes Behave against that instance.
+- If you run Behave manually, ensure the API is reachable (default `http://localhost:8000`) and the test DB is initialized.
+
+Troubleshooting
+
+- If `make setup` fails while creating databases, ensure Docker is running and the MySQL service is accepting TCP connections (the scripts use `127.0.0.1` rather than a socket).
+- If pytest prints SAWarning / "Event loop is closed" traces during teardown, try re-running the tests; the project disposes the SQLAlchemy engine at test teardown to avoid these warnings but intermittent GC messages can appear in some environments.
+
+Linters and static checks
+
+- `make check-ruff` — ruff
+- `make check-mypy` — mypy
+- `make check-pylint` — pylint (non-failing by design)
+- `make check-bandit` — bandit
+
+Contributing
+
+- When adding dependencies update `requirements.txt` and `requirements-dev.txt` accordingly.
+- Run linters and tests locally via the Makefile before opening a PR.
+
+Further reading
 
 See `Documentation/INVOICE_STATE_TRANSITIONS.md` and `Documentation/INVOICE_ITEMS.md` for domain and API details.
