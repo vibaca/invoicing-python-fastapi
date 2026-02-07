@@ -93,7 +93,7 @@ Project layout (short)
 - `src/` — application code (FastAPI, domain, application, infrastructure).
 - `tests/` — unit and integration tests.
 - `tests/acceptance/behave` — Behave features and steps.
-- `documentation/` — guides and domain notes.
+- `docs/` — guides and domain notes.
 
 Development & common commands
 
@@ -145,4 +145,4 @@ Contributing
 
 Further reading
 
-See `documentation/INVOICE_STATE_TRANSITIONS.md` and `documentation/INVOICE_ITEMS.md` for domain and API details.
+See `docs/INVOICE_STATE_TRANSITIONS.md` and `docs/INVOICE_ITEMS.md` for domain and API details.
