@@ -3,6 +3,7 @@ import sys
 import atexit
 import warnings
 import pytest
+from sqlalchemy.exc import SAWarning
 
 # Ensure tests run against a dedicated test database by default when running
 # pytest locally. If `DB_NAME` is explicitly provided in the environment (e.g.
@@ -24,11 +25,18 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from sqlalchemy.exc import SAWarning
 
-# Import the engine after ensuring `DB_NAME` is set so the module-level
-# `DATABASE_URL` is constructed for the test database instead of `invoicing_dev`.
-from src.Infrastructure.Database.Db import engine
+def _get_engine():
+    """Lazily import and return the SQLAlchemy `engine`.
+
+    Importing `engine` at module-level requires `DB_NAME` and the
+    project `src` package to be available. Import lazily from functions
+    so the environment can be configured first and to avoid E402
+    (module-level import not at top of file) linter errors.
+    """
+    from src.Infrastructure.Database.Db import engine
+
+    return engine
 
 # Reduce noisy SAWarning messages during test runs where event loop shutdown
 # can cause aiomysql connections to be GC-cleaned. Tests still exercise DB
@@ -46,7 +54,7 @@ def dispose_engine_after_test():
     """
     yield
     try:
-        engine.sync_engine.dispose()
+        _get_engine().sync_engine.dispose()
     except Exception:
         # best-effort cleanup in test teardown
         pass
@@ -57,7 +65,7 @@ def dispose_engine_after_test():
 
 def _dispose_engine_best_effort():
     try:
-        engine.sync_engine.dispose()
+        _get_engine().sync_engine.dispose()
     except Exception:
         pass
 
