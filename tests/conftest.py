@@ -1,4 +1,5 @@
 import os
+import sys
 import atexit
 import warnings
 import pytest
@@ -15,6 +16,13 @@ if os.environ.get("DB_NAME") == "invoicing_dev":
         "Refusing to run tests with DB_NAME=invoicing_dev.\n"
         "Set DB_NAME to a test database (e.g. invoicing_test) or run via the Makefile targets that set TEST_MODE and DB_NAME."
     )
+
+# Ensure project root is on sys.path so `from src...` imports work when
+# `PYTHONPATH` is not set (common in Windows shells or some container
+# environments). This mirrors the guard used in scripts/init_db.py.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 from sqlalchemy.exc import SAWarning
 
