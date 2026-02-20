@@ -1,6 +1,6 @@
 # Invoicing API (FastAPI)
 
-This project is a boilerplate for building a REST invoicing API with FastAPI, following DDD, Hexagonal Architecture, SOLID, CQRS, TDD, and Domain Events (RabbitMQ). The project is Dockerized and uses MySQL as the main database. Acceptance tests are provided with Behave (Python) and can be run locally or inside the existing `api` container.
+This project is a boilerplate for building a REST invoicing API with FastAPI, following DDD, Hexagonal Architecture, SOLID, CQRS, TDD, and Domain Events (RabbitMQ). The project is Dockerized and uses Postgres as the main database. Acceptance tests are provided with Behave (Python) and can be run locally or inside the existing `api` container.
 
 Prerequisites
 
@@ -38,7 +38,7 @@ export PYTHONPATH=./src
 uvicorn src.Main:app --reload --port 8000
 ```
 
-Run `init_db.py` if you need to create or reset the database schema used by the app (when pointing the app to a local MySQL instance):
+Run `init_db.py` if you need to create or reset the database schema used by the app (when pointing the app to a local Postgres instance):
 
 ```bash
 python scripts/init_db.py
@@ -128,7 +128,7 @@ Acceptance tests (behave) notes
 
 Troubleshooting
 
-- If `make setup` fails while creating databases, ensure Docker is running and the MySQL service is accepting TCP connections (the scripts use `127.0.0.1` rather than a socket).
+- If `make setup` fails while creating databases, ensure Docker is running and the Postgres service is accepting TCP connections (the scripts use `127.0.0.1` rather than a socket).
 - If pytest prints SAWarning / "Event loop is closed" traces during teardown, try re-running the tests; the project disposes the SQLAlchemy engine at test teardown to avoid these warnings but intermittent GC messages can appear in some environments.
 
 Linters and static checks

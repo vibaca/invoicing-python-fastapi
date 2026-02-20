@@ -27,4 +27,4 @@ docker-compose run --rm -e DB_NAME=invoicing_test -e TEST_MODE=1 -e API_BASE=htt
 # Clean up
 docker rm -f "$TEST_API_NAME" || true
 
-docker-compose exec -T db mysql -u root -ppassword -e "DROP DATABASE IF EXISTS invoicing_test;"
+docker-compose exec -T db sh -c 'PGPASSWORD=password psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS invoicing_test"'

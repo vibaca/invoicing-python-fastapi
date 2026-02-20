@@ -1,11 +1,19 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # Create development and test databases if they don't exist.
-# This script is executed by the official Postgres image during initialisation
-# as the `postgres` user, so no password is required.
+# This script runs during initialisation as the `postgres` user.
 
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
-  CREATE DATABASE invoicing_dev;
-  CREATE DATABASE invoicing_test;
-EOSQL
+createdb_if_missing() {
+  DBNAME="$1"
+  exists=$(psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DBNAME}'")
+  if [ "${exists}" = "1" ]; then
+    echo "Database ${DBNAME} already exists, skipping"
+  else
+    echo "Creating database ${DBNAME}..."
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -c "CREATE DATABASE \"${DBNAME}\";"
+  fi
+}
+
+createdb_if_missing invoicing_dev
+createdb_if_missing invoicing_test
