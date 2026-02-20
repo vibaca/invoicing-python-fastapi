@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: setup reset build up down logs test test-unit test-integration test-acceptance behave check-ruff check-mypy check-pylint check-bandit check-pyright verify verify-checks
+.PHONY: setup reset build up down logs test test-unit test-integration test-acceptance behave check-ruff check-mypy check-pylint check-bandit verify verify-checks
 
 reset:
 	docker-compose down -v --rmi all --remove-orphans || true
@@ -23,14 +23,13 @@ setup:
 	@echo "Running scripts/setup.sh (docker-only setup)..."
 	sh ./scripts/setup.sh
 	
-
 setup-no-test:
 	@echo "Running scripts/setup.sh (docker-only setup) without initializing test DB..."
 	INIT_TEST_DB=0 sh ./scripts/setup.sh
 
 # Unit tests: fast, no DB required (runs pytest)
 test-unit:
-	docker-compose run --rm -e PYTHONPATH=/app -e DB_NAME=invoicing_test -e TEST_MODE=1 api sh -c "pip install --no-cache-dir -r requirements-dev.txt && pytest tests/unit -q"
+	docker-compose run --rm -e DB_NAME=invoicing_test -e TEST_MODE=1 api pytest tests/unit -q --exitfirst
 
 # Integration tests: run pytest integration suite against test DB
 test-integration:
@@ -38,10 +37,10 @@ test-integration:
 	docker-compose up -d db rabbit
 	# Wait for Postgres and recreate a fresh test DB
 	@echo "Waiting for Postgres..."
-	docker-compose exec -T db sh -c 'until PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
+	docker-compose exec -T db sh -c 'until pg_isready -U postgres; do sleep 1; done'
 	# Ensure a clean test database for this test run
-	docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "DROP DATABASE IF EXISTS invoicing_test" || true'
-	docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "CREATE DATABASE invoicing_test"'
+	docker-compose exec -T db sh -c 'dropdb --if-exists invoicing_test -U postgres'
+	docker-compose exec -T db sh -c 'createdb invoicing_test -U postgres'
 	# Run integration tests in the existing `api` container, setting TEST env
 	# so the tests use `invoicing_test` DB and no-op event publishing.
 	# Ensure `api` service is available and run tests accordingly.
@@ -49,45 +48,59 @@ test-integration:
 	# Run integration tests inside a one-off api container configured for the
 	# test database to guarantee isolation from the development database.
 	@echo "Running integration tests inside one-off api container (invoicing_test)..."
-	docker-compose run --rm -e DB_NAME=invoicing_test -e TEST_MODE=1 -e PYTHONPATH=/app api sh -c "pip install --no-cache-dir -r requirements-dev.txt; pytest tests/integration -q"
+	docker-compose run --rm -e DB_NAME=invoicing_test -e TEST_MODE=1 api pytest tests/integration -q --exitfirst
 
 # Acceptance tests: behave (creates/drops test DB around run)
 test-acceptance:
-	# Run acceptance tests (Behave) using a temporary test DB that will be removed afterwards.
-	# 1) Start DB + RabbitMQ (do not start `api`; use existing dev api)
+	# Start dependencies
 	docker-compose up -d db rabbit
-	# 2) Wait for Postgres to accept connections, then ensure the test database exists
-	@echo "Waiting for Postgres to become available..."
-	docker-compose exec -T db sh -c 'until PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
-	# Ensure a clean test database for acceptance tests
-	docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "DROP DATABASE IF EXISTS invoicing_test" || true'
-	docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "CREATE DATABASE invoicing_test"'
-	# 3) Ensure `api` service is available and run behave accordingly.
-	@echo "Ensuring api service is available..."
-	# Start an api container configured for the test DB in the background (no
-	# host port binding) and run behave from a one-off container that targets
-	# the api container by its container name on the docker network.
-	@echo "Starting api container for acceptance tests (invoicing_test)..."
-	# Use a deterministic container name and delegate acceptance flow to script
-	sh ./scripts/run_acceptance.sh
-	# 5) Clean up: drop the test DB (do not stop dev services)
-	docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "DROP DATABASE IF EXISTS invoicing_test;"'
+	
+	# Wait for Postgres
+	@echo "Waiting for Postgres..."
+	docker-compose exec -T db sh -c 'until pg_isready -U postgres; do sleep 1; done'
+	
+	# Create clean test database
+	docker-compose exec -T db sh -c 'dropdb --if-exists invoicing_test -U postgres'
+	docker-compose exec -T db sh -c 'createdb invoicing_test -U postgres'
+	
+	# Run database migrations on test DB
+	docker-compose run --rm -e DB_NAME=invoicing_test api python scripts/init_db.py
+	
+	# Start API container for tests (background, no port binding)
+	docker-compose run -d --name invoicing_test_api \
+		-e DB_NAME=invoicing_test \
+		-e TEST_MODE=1 \
+		api
+	
+	# Wait for API to be ready
+	@echo "Waiting for API..."
+	@until docker exec invoicing_test_api curl -s http://localhost:8000/docs >/dev/null 2>&1; do \
+		sleep 1; \
+	done
+	
+	# Run behave tests
+	docker-compose run --rm \
+		-e DB_NAME=invoicing_test \
+		-e TEST_MODE=1 \
+		-e API_BASE=http://invoicing_test_api:8000/api \
+		api behave tests/acceptance/behave/features
+	
+	# Cleanup
+	@echo "Cleaning up..."
+	-docker rm -f invoicing_test_api 2>/dev/null
+	docker-compose exec -T db sh -c 'dropdb --if-exists invoicing_test -U postgres'
 
 # Convenience target: run all test suites sequentially
 test: test-unit test-integration test-acceptance
-
 # Static analysis / linters
 check-ruff:
-	docker-compose run --rm -e PYTHONPATH=/app api sh -c "pip install --no-cache-dir ruff && ruff check src tests"
-
+	docker-compose run --rm api ruff check src tests
 check-mypy:
-	docker-compose run --rm -e PYTHONPATH=/app api sh -c "pip install --no-cache-dir mypy && mypy src"
-
+	docker-compose run --rm api mypy src
 check-pylint:
-	docker-compose run --rm -e PYTHONPATH=/app api sh -c "pip install --no-cache-dir pylint && pylint src || true"
-
+	docker-compose run --rm api pylint src || true
 check-bandit:
-	docker-compose run --rm -e PYTHONPATH=/app api sh -c "pip install --no-cache-dir bandit && bandit -r src"
+	docker-compose run --rm api bandit -r src
 
 linters-all: check-ruff check-mypy check-pylint check-bandit
 

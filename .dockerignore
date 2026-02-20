@@ -1,0 +1,22 @@
+# Source Control
+.git
+.github
+
+# IDEs and OS
+.vscode
+.windsurf
+.idea
+.DS_Store
+
+# Local Python Junk
+.venv
+.pytest_cache
+__pycache__
+*.pyc
+.ruff_cache   # <-- add this
+
+# Docker/Infrastructure
+docker-compose.override.yml
+docker-compose.yml
+Dockerfile*
+README.md

@@ -123,7 +123,7 @@ Testing
 
 Acceptance tests (behave) notes
 
-- The `make test-acceptance` target launches a temporary API container, waits for readiness, runs `scripts/init_db.py` inside the container and then executes Behave against that instance.
+- The `make test-acceptance` target launches a temporary API container, waits for readiness, runs database migrations, and executes Behave against that instance.
 - If you run Behave manually, ensure the API is reachable (default `http://localhost:8000`) and the test DB is initialized.
 
 Troubleshooting
