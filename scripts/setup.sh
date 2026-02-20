@@ -8,12 +8,6 @@ docker-compose up -d db rabbit
 echo "Waiting for Postgres to become available..."
 docker-compose exec -T db sh -c 'until pg_isready -U postgres; do sleep 1; done'
 
-echo "Creating development database invoicing_dev (if missing)..."
-docker-compose exec -T db sh -c 'createdb invoicing_dev -U postgres' 2>/dev/null || true
-
-echo "Creating test database invoicing_test (if missing)..."
-docker-compose exec -T db sh -c 'createdb invoicing_test -U postgres' 2>/dev/null || true
-
 echo "Installing base requirements in api container (quiet)..."
 docker-compose run --rm -e PYTHONPATH=/app api pip install --no-cache-dir -r requirements.txt >/dev/null 2>&1 || true
 

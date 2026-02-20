@@ -29,7 +29,7 @@ setup-no-test:
 
 # Unit tests: fast, no DB required (runs pytest)
 test-unit:
-	docker-compose run --rm -e DB_NAME=invoicing_test -e TEST_MODE=1 api pytest tests/unit -q --exitfirst
+	docker-compose run --rm -e DB_NAME=invoicing_test -e TEST_MODE=1 -w /app api pytest tests/unit -q --exitfirst
 
 # Integration tests: run pytest integration suite against test DB
 test-integration:
@@ -48,7 +48,7 @@ test-integration:
 	# Run integration tests inside a one-off api container configured for the
 	# test database to guarantee isolation from the development database.
 	@echo "Running integration tests inside one-off api container (invoicing_test)..."
-	docker-compose run --rm -e DB_NAME=invoicing_test -e TEST_MODE=1 api pytest tests/integration -q --exitfirst
+	docker-compose run --rm -e DB_NAME=invoicing_test -e TEST_MODE=1 -w /app api pytest tests/integration -q --exitfirst
 
 # Acceptance tests: behave (creates/drops test DB around run)
 test-acceptance:
@@ -83,6 +83,7 @@ test-acceptance:
 		-e DB_NAME=invoicing_test \
 		-e TEST_MODE=1 \
 		-e API_BASE=http://invoicing_test_api:8000/api \
+		-w /app \
 		api behave tests/acceptance/behave/features
 	
 	# Cleanup

@@ -11,20 +11,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	#libssl-dev \
 	#libffi-dev \
 	libpq-dev \
+	curl \
 	#cargo \
 	#rustc \
 	&& rm -rf /var/lib/apt/lists/*
 
+# Install main dependencies
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# dev dependencies
+# Install dev dependencies (for testing/linting)
 COPY requirements-dev.txt /app/requirements-dev.txt
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
 COPY ./src /app/src
+COPY ./tests /app/tests
 COPY ./alembic.ini /app/
 COPY ./migrations /app/migrations
+COPY ./scripts /app/scripts
 
 # Create non-root user
 RUN addgroup --system --gid 1001 app && \

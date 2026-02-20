@@ -44,6 +44,8 @@ services:
       POSTGRES_PASSWORD: password
       # A default DB is still created for convenience; the init script below creates both dev and test DBs
       POSTGRES_DB: invoicing_dev
+      LANG: en_US.utf8
+      LC_ALL: en_US.utf8
     ports:
       - "5432:5432"
     volumes:
@@ -54,10 +56,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      # no start_period needed for db usually
+      start_period: 10s
 
   rabbit:
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:4-management-alpine # version 3 has deprecated features; 4 is latest stable with management UI
     container_name: invoicing_rabbit
     restart: unless-stopped
     ports:
