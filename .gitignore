@@ -68,3 +68,6 @@ coverage/
 # Ignore local env files sometimes used
 .env.local
 .env.*.local
+
+# Ignore environment files for tests/local secrets
+.env.test

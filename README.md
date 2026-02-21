@@ -109,6 +109,21 @@ Environment variables
 - `PYTHONPATH` — ensure the project `src` is on `PYTHONPATH` when running scripts or tests locally.
 - `API_BASE` — used by acceptance tests to point to the base host (container name or URL).
 
+Environment file usage (dev/test)
+
+- This project supports `.env.local` (development secrets) and `.env.test` (test secrets). These are generated from `.env.example` by `make setup`/`make ensure-env` if missing.
+- To populate runtime variables for Docker Compose the project uses a `./.env` file. Use `make ensure-env` to create `./.env` from your `.env.local` (or from `.env.example` as a fallback).
+- Typical flow (recommended):
+
+```bash
+make ensure-env   # creates .env.local, .env.test and .env if missing (non-destructive)
+make setup        # starts infra and initializes DBs using values from .env
+```
+
+- The `docker-compose.yml` services are configured to read variables from `./.env` (and fall back to project defaults). The `scripts/setup.sh` and Makefile test targets also use these variables so you should keep `./.env` in sync with your `.env.local` when you change secrets.
+
+- `make reset` will remove local `.env*` files except `*.example` before cleaning Docker resources.
+
 Testing
 
  (Optional) Run all unit tests locally:

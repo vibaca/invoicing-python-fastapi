@@ -8,13 +8,13 @@ docker-compose up -d db rabbit
 # Use TCP (127.0.0.1) inside the container to avoid socket connection issues
 echo "Waiting for Postgres to become available..."
 # Use TCP (127.0.0.1) inside the container to avoid socket connection issues
-docker-compose exec -T db sh -c 'until PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
+docker-compose exec -T db sh -c 'until PGPASSWORD="$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U postgres -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
 
 echo "Creating development database invoicing_dev (if missing)..."
-docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "CREATE DATABASE invoicing_dev" >/dev/null 2>&1 || true'
+docker-compose exec -T db sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U postgres -d postgres -c "CREATE DATABASE invoicing_dev" >/dev/null 2>&1 || true'
 
 echo "Creating test database invoicing_test (if missing)..."
-docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "CREATE DATABASE invoicing_test" >/dev/null 2>&1 || true'
+docker-compose exec -T db sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U postgres -d postgres -c "CREATE DATABASE invoicing_test" >/dev/null 2>&1 || true'
 
 echo "Installing base requirements in api container (quiet)..."
 docker-compose run --rm -e PYTHONPATH=/app api pip install --no-cache-dir -r requirements.txt >/dev/null 2>&1 || true

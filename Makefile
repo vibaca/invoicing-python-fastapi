@@ -1,8 +1,11 @@
 SHELL := /bin/bash
 
-.PHONY: setup reset build up down logs test test-unit test-integration test-acceptance behave check-ruff check-mypy check-pylint check-bandit check-pyright verify verify-checks
+.PHONY: ensure-env setup reset build up down logs test test-unit test-integration test-acceptance behave check-ruff check-mypy check-pylint check-bandit check-pyright verify verify-checks
 
 reset:
+	@echo "Removing local env files (except examples)..."
+	@find . -maxdepth 1 -type f -name ".env*" ! -name "*.example" -print -exec rm -f {} \; || true
+	@echo "Removing docker containers/volumes/images..."
 	docker-compose down -v --rmi all --remove-orphans || true
 	docker system prune -af || true
 
@@ -18,11 +21,64 @@ down:
 logs:
 	docker-compose logs -f
 
-# Setup development environment (docker-only): delegate to `scripts/setup.sh`
+# Setup development environment (docker-only): create local env files from
+# `.env.example` if missing, then delegate to `scripts/setup.sh`.
 setup:
+	@echo "Preparing environment files..."
+	@# Create .env.local from example if it doesn't exist (do not overwrite)
+	@if [ ! -f .env.local ]; then cp .env.example .env.local && echo "Created .env.local from .env.example"; else echo ".env.local already exists"; fi
+	@# Create .env.test from example if it doesn't exist and set DB_NAME to the test DB
+	@if [ ! -f .env.test ]; then \
+		cp .env.example .env.test && \
+		awk 'BEGIN{FS=OFS="="} /^DB_NAME=/{print "DB_NAME=invoicing_test"; next} {print}' .env.test > .env.test.tmp && \
+		mv .env.test.tmp .env.test && \
+		echo "Created .env.test (DB_NAME set to invoicing_test)"; \
+	else echo ".env.test already exists"; fi
+	@# Ensure .env/.env.local/.env.test are present before running setup
+	@$(MAKE) ensure-env
 	@echo "Running scripts/setup.sh (docker-only setup)..."
 	sh ./scripts/setup.sh
-	
+
+
+ensure-env:
+	@# Create .env.local from .env.example if missing (example as template)
+	@if [ -f .env.local ]; then \
+		echo ".env.local already exists"; \
+	else \
+		if [ -f .env.example ]; then \
+			cp .env.example .env.local && echo "Created .env.local from .env.example"; \
+		else \
+			echo "No .env.example found; create .env.local manually" && exit 1; \
+		fi; \
+	fi
+
+	@# Create .env.test from .env.example if missing, and set DB_NAME to invoicing_test
+	@if [ -f .env.test ]; then \
+		echo ".env.test already exists"; \
+	else \
+		if [ -f .env.example ]; then \
+			cp .env.example .env.test && \
+			awk 'BEGIN{FS=OFS="="} /^DB_NAME=/{print "DB_NAME=invoicing_test"; next} {print}' .env.test > .env.test.tmp && \
+			mv .env.test.tmp .env.test && \
+			echo "Created .env.test (DB_NAME set to invoicing_test)"; \
+		else \
+			echo "No .env.example found; create .env.test manually" && exit 1; \
+		fi; \
+	fi
+
+	@# Populate .env from .env.local if missing; fallback to .env.example
+	@if [ -f .env ]; then \
+		echo ".env already exists"; \
+	else \
+		if [ -f .env.local ]; then \
+			cp .env.local .env && echo "Created .env from .env.local"; \
+		elif [ -f .env.example ]; then \
+			cp .env.example .env && echo "Created .env from .env.example"; \
+		else \
+			echo "No .env.local or .env.example found; create .env manually" && exit 1; \
+		fi; \
+	fi
+
 
 setup-no-test:
 	@echo "Running scripts/setup.sh (docker-only setup) without initializing test DB..."
