@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: setup reset build up down logs test test-unit test-integration test-acceptance behave check-ruff check-mypy check-pylint check-bandit check-pyright verify
+.PHONY: setup reset build up down logs test test-unit test-integration test-acceptance behave check-ruff check-mypy check-pylint check-bandit check-pyright verify verify-checks
 
 reset:
 	docker-compose down -v --rmi all --remove-orphans || true
@@ -36,11 +36,12 @@ test-unit:
 test-integration:
 	# Ensure db + rabbit are running (do not start `api`; use existing dev api)
 	docker-compose up -d db rabbit
-	# Wait for MySQL and recreate a fresh test DB
-	@echo "Waiting for MySQL..."
-	docker-compose exec -T db sh -c 'until mysql -u root -ppassword -e "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
+	# Wait for Postgres and recreate a fresh test DB
+	@echo "Waiting for Postgres..."
+	docker-compose exec -T db sh -c 'until PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
 	# Ensure a clean test database for this test run
-	docker-compose exec -T db mysql -u root -ppassword -e "DROP DATABASE IF EXISTS invoicing_test; CREATE DATABASE invoicing_test;"
+	docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "DROP DATABASE IF EXISTS invoicing_test" || true'
+	docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "CREATE DATABASE invoicing_test"'
 	# Run integration tests in the existing `api` container, setting TEST env
 	# so the tests use `invoicing_test` DB and no-op event publishing.
 	# Ensure `api` service is available and run tests accordingly.
@@ -55,11 +56,12 @@ test-acceptance:
 	# Run acceptance tests (Behave) using a temporary test DB that will be removed afterwards.
 	# 1) Start DB + RabbitMQ (do not start `api`; use existing dev api)
 	docker-compose up -d db rabbit
-	# 2) Wait for MySQL to accept connections, then ensure the test database exists
-	@echo "Waiting for MySQL to become available..."
-	docker-compose exec -T db sh -c 'until mysql -u root -ppassword -e "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
+	# 2) Wait for Postgres to accept connections, then ensure the test database exists
+	@echo "Waiting for Postgres to become available..."
+	docker-compose exec -T db sh -c 'until PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
 	# Ensure a clean test database for acceptance tests
-	docker-compose exec -T db mysql -u root -ppassword -e "DROP DATABASE IF EXISTS invoicing_test; CREATE DATABASE invoicing_test;"
+	docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "DROP DATABASE IF EXISTS invoicing_test" || true'
+	docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "CREATE DATABASE invoicing_test"'
 	# 3) Ensure `api` service is available and run behave accordingly.
 	@echo "Ensuring api service is available..."
 	# Start an api container configured for the test DB in the background (no
@@ -69,7 +71,7 @@ test-acceptance:
 	# Use a deterministic container name and delegate acceptance flow to script
 	sh ./scripts/run_acceptance.sh
 	# 5) Clean up: drop the test DB (do not stop dev services)
-	docker-compose exec -T db mysql -u root -ppassword -e "DROP DATABASE IF EXISTS invoicing_test;"
+	docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "DROP DATABASE IF EXISTS invoicing_test;"'
 
 # Convenience target: run all test suites sequentially
 test: test-unit test-integration test-acceptance
@@ -87,4 +89,6 @@ check-pylint:
 check-bandit:
 	docker-compose run --rm -e PYTHONPATH=/app api sh -c "pip install --no-cache-dir bandit && bandit -r src"
 
-verify: check-ruff check-mypy check-pylint check-bandit test
+linters-all: check-ruff check-mypy check-pylint check-bandit
+
+verify: linters-all test

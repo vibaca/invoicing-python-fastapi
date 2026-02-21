@@ -3,17 +3,18 @@ set -euo pipefail
 
 echo "Starting dockerized setup (db + rabbit + init)..."
 
+# Start infra services and wait for Postgres to become available
 docker-compose up -d db rabbit
-
-echo "Waiting for MySQL to become available..."
 # Use TCP (127.0.0.1) inside the container to avoid socket connection issues
-docker-compose exec -T db sh -c 'until mysql -h 127.0.0.1 -u root -ppassword -e "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
+echo "Waiting for Postgres to become available..."
+# Use TCP (127.0.0.1) inside the container to avoid socket connection issues
+docker-compose exec -T db sh -c 'until PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "SELECT 1" >/dev/null 2>&1; do sleep 1; done'
 
 echo "Creating development database invoicing_dev (if missing)..."
-docker-compose exec -T db mysql -h 127.0.0.1 -u root -ppassword -e "CREATE DATABASE IF NOT EXISTS invoicing_dev;"
+docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "CREATE DATABASE invoicing_dev" >/dev/null 2>&1 || true'
 
 echo "Creating test database invoicing_test (if missing)..."
-docker-compose exec -T db mysql -h 127.0.0.1 -u root -ppassword -e "CREATE DATABASE IF NOT EXISTS invoicing_test;"
+docker-compose exec -T db sh -c 'PGPASSWORD=password psql -h 127.0.0.1 -U postgres -d postgres -c "CREATE DATABASE invoicing_test" >/dev/null 2>&1 || true'
 
 echo "Installing base requirements in api container (quiet)..."
 docker-compose run --rm -e PYTHONPATH=/app api pip install --no-cache-dir -r requirements.txt >/dev/null 2>&1 || true

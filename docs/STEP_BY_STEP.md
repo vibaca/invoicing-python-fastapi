@@ -6,7 +6,7 @@ This guide documents the steps taken to create this project so you can reproduce
    - Create folders: `api/`, `tests/acceptance/behave/`, `docs/`, `scripts/`.
 
 2. Dockerize the stack
-   - Add `docker-compose.yml` with services: `api`, `db` (MySQL), and `rabbit`.
+   - Add `docker-compose.yml` with services: `api`, `db` (Postgres), and `rabbit`.
    - Write an `Dockerfile` (or `api/Dockerfile`) to install Python dependencies and run `uvicorn`.
 
 3. Define dependencies
@@ -27,7 +27,7 @@ This guide documents the steps taken to create this project so you can reproduce
    - Define domain events (e.g., `InvoiceCreated`) in `src/domain/events.py`.
 
 6. Implement infrastructure
-   - Use SQLAlchemy async with `aiomysql` for MySQL connectivity.
+   - Use SQLAlchemy async with `asyncpg` for Postgres connectivity.
    - Write repository implementations translating domain <-> DB model (implementations under `src/Infrastructure/Repositories`).
    - Implement `EventPublisher` with `aio_pika` for RabbitMQ (implementation under `src/Infrastructure/Events`).
    - Keep adapter wiring (HTTP route dependencies) in `src/Infrastructure/Adapters/Http.py` which supplies concrete ports via FastAPI `Depends`.
