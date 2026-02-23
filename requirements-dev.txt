@@ -10,3 +10,4 @@ ruff
 mypy
 pylint
 bandit
+sqlalchemy2-stubs

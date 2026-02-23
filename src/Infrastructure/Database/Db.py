@@ -2,8 +2,11 @@ import os
 import asyncio
 import logging
 import warnings
+from typing import Any
+from datetime import datetime
+
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base, Mapped
 from sqlalchemy import Column, String, Float, DateTime, func
 from sqlalchemy.pool import NullPool
 import atexit
@@ -33,24 +36,37 @@ DATABASE_URL = os.getenv(
 # Create the async engine for Postgres (asyncpg).
 # When running tests prefer NullPool to avoid pooled connection shutdown
 # races that can emit un-awaited coroutine warnings during teardown.
-engine_kwargs = {"echo": False}
+from typing import Dict, TYPE_CHECKING
+
+engine_kwargs: Dict[str, Any] = {"echo": False}
 if TEST_MODE:
     engine_kwargs["poolclass"] = NullPool
 
 engine = create_async_engine(DATABASE_URL, **engine_kwargs)
-AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-Base = declarative_base()
+# sessionmaker is generic in stubs; annotate for mypy
+AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)  # type: ignore
+
+# Use a runtime declarative base; provide a typing-only `Base` class when
+# type-checking so mypy accepts it as a valid base class for ORM models.
+if TYPE_CHECKING:
+    from sqlalchemy.orm import DeclarativeMeta
+    from sqlalchemy import MetaData
+
+    class Base(metaclass=DeclarativeMeta):
+        metadata: MetaData
+else:
+    Base = declarative_base()
 
 
 class InvoiceModel(Base):
     __tablename__ = "invoices"
-    id = Column(String(36), primary_key=True, index=True)
-    customer = Column(String(255), nullable=False)
-    amount = Column(Float, nullable=False)
-    status = Column(String(50), nullable=False, server_default="draft")
-    invoice_number = Column(String(64), nullable=False, unique=True)
-    items = Column(String(2000), nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
+    id: Mapped[str] = Column(String(36), primary_key=True, index=True)  # type: ignore[assignment]
+    customer: Mapped[str] = Column(String(255), nullable=False)  # type: ignore[assignment]
+    amount: Mapped[float] = Column(Float, nullable=False)  # type: ignore[assignment]
+    status: Mapped[str] = Column(String(50), nullable=False, server_default="draft")  # type: ignore[assignment]
+    invoice_number: Mapped[str] = Column(String(64), nullable=False, unique=True)  # type: ignore[assignment]
+    items: Mapped[str | None] = Column(String(2000), nullable=True)  # type: ignore[assignment]
+    created_at: Mapped[datetime | None] = Column(DateTime, server_default=func.now())  # type: ignore[assignment]
 
 
 async def init_db(retries: int = 12, delay: float = 2.0):
