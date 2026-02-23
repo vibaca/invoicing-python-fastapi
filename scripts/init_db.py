@@ -1,22 +1,33 @@
 import asyncio
+import logging
 import os
 import sys
+import argparse
 
-# Ensure project root is on sys.path so `from src...` imports work
-# Works when running the script inside containers or on Windows where PYTHONPATH
-# may not be set by the environment.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from src.Infrastructure.Database.Db import init_db, engine
 
-async def main():
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+async def main(db_name: str = None):
+    if db_name:
+        os.environ["DB_NAME"] = db_name
+        logger.info(f"Initializing database: {db_name}")
+    
     await init_db()
+    
     try:
         await engine.dispose()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Error disposing engine: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--db", help="Database name to initialize")
+    args = parser.parse_args()
+    
+    asyncio.run(main(args.db))

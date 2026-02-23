@@ -1,41 +1,76 @@
+# Docker Compose configuration for the Invoicing application.
+# Defines services for the API, PostgreSQL database, and RabbitMQ message broker.
+# Sets up environment variables, ports, and volumes for each service.
+# CURRENT ISSUES :
+# Acceptance tests are currently run locally via Behave; no dedicated container is defined for them in this configuration. Depending on your CI/CD setup, you may want to add a service for running acceptance tests in a containerized environment.
+# No health checks (services start in wrong order)
+# Volume mounts entire project (overkill)
+# Missing condition for dependencies
+
 services:
   api:
     build: .
     restart: unless-stopped
     depends_on:
-      - db
-      - rabbit
+      db:
+        condition: service_healthy
+      rabbit:
+        condition: service_healthy
+    env_file:
+      - .env
     environment:
       DB_HOST: db
-      DB_PORT: "3306"
-      DB_USER: root
+      DB_PORT: 5432
+      DB_USER: postgres
       DB_PASSWORD: password
       DB_NAME: ${DB_NAME:-invoicing_dev}
       RABBITMQ_URL: amqp://guest:guest@rabbit:5672/
     ports:
       - "8000:8000"
     volumes:
-      - ./:/app
+      - ./src:/app/src  # Mount only src for development; adjust as needed for production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]  # API check
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   db:
-    image: mysql:8.0
+    image: postgres:15-alpine
     container_name: invoicing_db
+    restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: password
+      POSTGRES_PASSWORD: password
       # A default DB is still created for convenience; the init script below creates both dev and test DBs
-      MYSQL_DATABASE: invoicing_dev
+      POSTGRES_DB: invoicing_dev
+      LANG: en_US.utf8
+      LC_ALL: en_US.utf8
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - db_data:/var/lib/mysql
-      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+      - db_data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]  # PostgreSQL check
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   rabbit:
-    image: rabbitmq:3-management
+    image: rabbitmq:4-management-alpine # version 3 has deprecated features; 4 is latest stable with management UI
     container_name: invoicing_rabbit
+    restart: unless-stopped
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # Acceptance tests run locally via Behave; no dedicated container
 

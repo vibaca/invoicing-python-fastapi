@@ -39,22 +39,23 @@ def _get_engine():
     return engine
 
 # Reduce noisy SAWarning messages during test runs where event loop shutdown
-# can cause aiomysql connections to be GC-cleaned. Tests still exercise DB
+# can cause asyncpg connections to be GC-cleaned. Tests still exercise DB
 # behaviour; this just keeps the logs clean for CI output.
 warnings.filterwarnings("ignore", category=SAWarning)
 
 
 @pytest.fixture(scope="function", autouse=True)
-def dispose_engine_after_test():
+async def dispose_engine_after_test():
     """Best-effort: dispose engine connection pools after each test.
 
     Disposing after each test ensures connection cleanup happens while the
-    asyncio event loop is still running, avoiding aiomysql GC warnings
+    asyncio event loop is still running, avoiding asyncpg GC warnings
     that occur when connections are finalized after loop shutdown.
     """
     yield
     try:
-        _get_engine().sync_engine.dispose()
+        # Await async engine dispose to ensure connections are closed
+        await _get_engine().dispose()
     except Exception:
         # best-effort cleanup in test teardown
         pass

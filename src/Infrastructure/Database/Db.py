@@ -5,6 +5,7 @@ import warnings
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, String, Float, DateTime, func
+from sqlalchemy.pool import NullPool
 import atexit
 # Suppress SQLAlchemy SAWarning about async DB connection objects being
 # garbage-collected after the event loop is closed; best practice is to
@@ -16,19 +17,27 @@ warnings.filterwarnings("ignore", category=SAWarning)
 # OperationalError is handled via generic exceptions in retry loop
 
 # Build DATABASE_URL from environment variables so we can switch dev/test easily
-DB_USER = os.getenv("DB_USER", "root")
+DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "password")
 DB_HOST = os.getenv("DB_HOST", "db")
-DB_PORT = os.getenv("DB_PORT", "3306")
+DB_PORT = os.getenv("DB_PORT", "5432")
 # default to the development database
 DB_NAME = os.getenv("DB_NAME", "invoicing_dev")
+TEST_MODE = os.getenv("TEST_MODE", "0") == "1" or DB_NAME.endswith("_test")
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    f"mysql+aiomysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
+    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
 )
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+# Create the async engine for Postgres (asyncpg).
+# When running tests prefer NullPool to avoid pooled connection shutdown
+# races that can emit un-awaited coroutine warnings during teardown.
+engine_kwargs = {"echo": False}
+if TEST_MODE:
+    engine_kwargs["poolclass"] = NullPool
+
+engine = create_async_engine(DATABASE_URL, **engine_kwargs)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
 
@@ -48,7 +57,7 @@ async def init_db(retries: int = 12, delay: float = 2.0):
     """Create tables, retrying until the database is available.
 
     Retries `retries` times with `delay` seconds between attempts (exponential
-    backoff applied). This prevents the application from exiting when MySQL
+    backoff applied). This prevents the application from exiting when Postgres
     is still starting inside Docker.
     """
     attempt = 0
