@@ -5,6 +5,8 @@ SHELL := /bin/bash
 reset:
 	docker-compose down -v --rmi all --remove-orphans || true
 	docker system prune -af || true
+	@echo "Removing local env files: .env .env.test"
+	-rm -f .env .env.test
 
 build:
 	docker-compose build --no-cache
@@ -20,6 +22,8 @@ logs:
 
 # Setup development environment (docker-only): delegate to `scripts/setup.sh`
 setup:
+	@echo "Generating .env and .env.test from .env.example..."
+	python3 ./scripts/generate_envs.py
 	@echo "Running scripts/setup.sh (docker-only setup)..."
 	sh ./scripts/setup.sh
 	
