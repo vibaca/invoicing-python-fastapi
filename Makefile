@@ -5,6 +5,8 @@ SHELL := /bin/bash
 reset:
 	docker-compose down -v --rmi all --remove-orphans || true
 	docker system prune -af || true
+	@echo "Removing local env files: .env .env.test"
+	-rm -f .env .env.test
 
 build:
 	docker-compose build --no-cache
@@ -20,6 +22,8 @@ logs:
 
 # Setup development environment (docker-only): delegate to `scripts/setup.sh`
 setup:
+	@echo "Generating .env and .env.test from .env.example..."
+	python3 ./scripts/generate_envs.py
 	@echo "Running scripts/setup.sh (docker-only setup)..."
 	sh ./scripts/setup.sh
 	
@@ -48,7 +52,12 @@ test-integration:
 	# Run integration tests inside a one-off api container configured for the
 	# test database to guarantee isolation from the development database.
 	@echo "Running integration tests inside one-off api container (invoicing_test)..."
-	docker-compose run --rm -e DB_NAME=invoicing_test -e TEST_MODE=1 -w /app api pytest tests/integration -q --exitfirst
+	# Ensure the api process uses the test database regardless of .env DATABASE_URL
+	docker-compose run --rm \
+		-e DB_NAME=invoicing_test \
+		-e TEST_MODE=1 \
+		-e DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/invoicing_test \
+		-w /app api pytest tests/integration -q --exitfirst
 
 # Acceptance tests: behave (creates/drops test DB around run)
 test-acceptance:
@@ -64,13 +73,18 @@ test-acceptance:
 	docker-compose exec -T db sh -c 'createdb invoicing_test -U postgres'
 	
 	# Run database migrations on test DB
-	docker-compose run --rm -e DB_NAME=invoicing_test api python scripts/init_db.py
+	# Ensure migrations run against the test DB explicitly (avoid .env DATABASE_URL)
+	docker-compose run --rm \
+		-e DB_NAME=invoicing_test \
+		-e DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/invoicing_test \
+		api python scripts/init_db.py
 	
 	# Start API container for tests (background, no port binding)
-	docker-compose run -d --name invoicing_test_api \
-		-e DB_NAME=invoicing_test \
-		-e TEST_MODE=1 \
-		api
+		docker-compose run -d --name invoicing_test_api \
+			-e DB_NAME=invoicing_test \
+			-e TEST_MODE=1 \
+			-e DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/invoicing_test \
+			api
 	
 	# Wait for API to be ready
 	@echo "Waiting for API..."
@@ -82,6 +96,7 @@ test-acceptance:
 	docker-compose run --rm \
 		-e DB_NAME=invoicing_test \
 		-e TEST_MODE=1 \
+		-e DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/invoicing_test \
 		-e API_BASE=http://invoicing_test_api:8000/api \
 		-w /app \
 		api behave tests/acceptance/behave/features
