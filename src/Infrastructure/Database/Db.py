@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 import warnings
-from typing import Any
+from typing import Any, Dict, TYPE_CHECKING
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -36,8 +36,6 @@ DATABASE_URL = os.getenv(
 # Create the async engine for Postgres (asyncpg).
 # When running tests prefer NullPool to avoid pooled connection shutdown
 # races that can emit un-awaited coroutine warnings during teardown.
-from typing import Dict, TYPE_CHECKING
-
 engine_kwargs: Dict[str, Any] = {"echo": False}
 if TEST_MODE:
     engine_kwargs["poolclass"] = NullPool
